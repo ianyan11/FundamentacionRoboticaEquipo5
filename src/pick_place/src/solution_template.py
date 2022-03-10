@@ -26,7 +26,6 @@ class Planner():
     print("============ Printing robot state")
     print(robot.get_current_state())
     print("")
-
     planning_frame = move_group.get_planning_frame()
     eef_link = move_group.get_end_effector_link()
     group_names = robot.get_group_names()
@@ -85,7 +84,7 @@ class Planner():
   def goToPose(self,pose_goal):
 
     #TODO: Code used to move to a given position using move it
-    pose_goal = geometry_msgs.msg.Pose()
+    pose_goal = Pose()
     pose_goal.orientation.w = 1.0
     pose_goal.position.x = 0.4
     pose_goal.position.y = 0.1
@@ -100,12 +99,12 @@ class Planner():
 
 
   def detachBox(self,box_name):
-
+    pass
   #TODO: Open the gripper and call the service that releases the box
 
 
   def attachBox(self,box_name):
-
+    pass
   #TODO: Close the gripper and call the service that releases the box
 
 
@@ -119,12 +118,12 @@ class myNode():
     rospy.wait_for_service('AttachObject')
 
   def getGoal(self,action):
-
+    pass
     #TODO: Call the service that will provide you with a suitable target for the movement
 
 
   def tf_goal(self, goal):
-
+    pass
     #TODO:Use tf2 to retrieve the position of the target with respect to the proper reference frame
 
 

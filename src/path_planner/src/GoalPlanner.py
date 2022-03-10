@@ -187,5 +187,5 @@ if __name__ == '__main__':
         aux = StateGatherer()
         aux.main()
 
-    except (rospy.ROSInterruptException, rospy.ROSException("topic was closed during publish()")):
+    except (rospy.ROSException("topic was closed during publish()")):
         pass
