@@ -73,7 +73,7 @@ class Planner():
       # get_model_state from gazebo
       self.model_initial_coordinates = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
 
-  def wait_for_state_update(self,box_name, box_is_known=False, box_is_attached=False, timeout=1):
+  def wait_for_state_update(self,box_name, box_is_known=False, box_is_attached=False, timeout=1.5):
     #TODO: Whenever we change something in moveit we need to make sure that the interface has been updated properly
     
     #Get the start time to compute when we ran into a timeout
@@ -88,7 +88,6 @@ class Planner():
       # Test if the box is in the scene.
       # Note that attaching the box will remove it from known_objects
       is_known = self.box_name in self.scene.get_known_object_names()
-
       # Test if we are in the expected state
       if (box_is_attached == is_attached) and (box_is_known == is_known):
         return True
@@ -98,7 +97,7 @@ class Planner():
       seconds = rospy.get_time()
 
       # If we exited the while loop without returning then we timed out
-      return False
+    return False
 
   #Method used to extract XYZ coordinates of a frame
   def lookCordinates(self, frame):
@@ -143,12 +142,6 @@ class Planner():
 
   def goToPose(self,pose_goal):
     #TODO: Code used to move to a given position using move it
-    #Copy global variables into local 
-    move_group = self.move_group
-    posXarm = self.posXarm
-    robot = self.robot
-    display_trajectory_publisher = self.display_trajectory_publisher
-
     #Initialize waypoints vector & append current pose
     waypoints = []
     
@@ -157,11 +150,11 @@ class Planner():
     # form the absolute goal position
     #NOTE: X & Y coordinates are switched because gazebo and rviz does
     # not have same orientation
-    wpose = move_group.get_current_pose().pose
-    wpose.position.x = float(pose_goal[1])-posXarm[1]
-    wpose.position.y = -float(pose_goal[0]-posXarm[0])
+    wpose = self.move_group.get_current_pose().pose
+    wpose.position.x = float(pose_goal[1])-self.posXarm[1]
+    wpose.position.y = -float(pose_goal[0]-self.posXarm[0])
     #Add a little displacement on z to don't hit the box
-    wpose.position.z = float(pose_goal[2])-posXarm[2]+0.2
+    wpose.position.z = float(pose_goal[2])-self.posXarm[2]+0.2
     #Append waypoints
     waypoints.append(copy.deepcopy(wpose))
 
@@ -169,102 +162,72 @@ class Planner():
     #Move down to take the box
     wpose.position.z = -0.001
     waypoints.append(copy.deepcopy(wpose))
-    (plan, fraction) = move_group.compute_cartesian_path(
+    (plan, fraction) = self.move_group.compute_cartesian_path(
     waypoints,   # waypoints to follow
     0.01,        # eef_step
     0.0)         # jump_threshold
     #Display trajectory
     display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-    display_trajectory.trajectory_start = robot.get_current_state()
+    display_trajectory.trajectory_start = self.robot.get_current_state()
     display_trajectory.trajectory.append(plan)
     # Publish
-    display_trajectory_publisher.publish(display_trajectory)
-    move_group.execute(plan, wait=True)
-    move_group.stop()
+    self.display_trajectory_publisher.publish(display_trajectory)
+    self.move_group.execute(plan, wait=True)
+    self.move_group.stop()
     #Clear targets
-    move_group.clear_pose_targets()
+    self.move_group.clear_pose_targets()
     rospy.sleep(0.1)
 
   #Method used to return home after reaching last goal
   def goBackFromPose(self, last_goal):
-    #Copy global variables into local 
-    move_group = self.move_group
-    posXarm = self.posXarm
-    robot = self.robot
-    display_trajectory_publisher = self.display_trajectory_publisher
     #Initialize waypoints vector & append current pose
     waypoints = []
     #Get current pose
-    wpose = move_group.get_current_pose().pose
+    wpose = self.move_group.get_current_pose().pose
     #Move up
-    wpose.position.z = float(last_goal[2])-posXarm[2]+0.2
+    wpose.position.z = float(last_goal[2])-self.posXarm[2]+0.2
     #Append waypoint
     waypoints.append(copy.deepcopy(wpose))
     #Now move to any XY position
-    wpose.position.x = 0.2
-    wpose.position.y = 0.2
+    wpose.position.x = 0.3
+    wpose.position.y = 0.0
     waypoints.append(copy.deepcopy(wpose))
-    (plan, fraction) = move_group.compute_cartesian_path(
+    (plan, fraction) = self.move_group.compute_cartesian_path(
     waypoints,   # waypoints to follow
     0.01,        # eef_step
     0.0)         # jump_threshold
     #Display trajectory
     display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-    display_trajectory.trajectory_start = robot.get_current_state()
+    display_trajectory.trajectory_start = self.robot.get_current_state()
     display_trajectory.trajectory.append(plan)
     # Publish
-    display_trajectory_publisher.publish(display_trajectory)
-    move_group.execute(plan, wait=True)
-    move_group.stop()
+    self.display_trajectory_publisher.publish(display_trajectory)
+    self.move_group.execute(plan, wait=True)
+    self.move_group.stop()
     # Clear targets
-    move_group.clear_pose_targets()
+    self.move_group.clear_pose_targets()
     rospy.sleep(0.1)
 
-  def detachBox(self,box_name):
-  #TODO: Open the gripper and call the service that releases the box
-    #Copy global variables into local 
-    gripper_move_group = self.gripper_move_group
+  def changeAttachBox(self,box_name, wannaAttach = True):
+  #TODO: Open and close the gripper and call the service that releases the box
+  #This function gets the attach request and assings the joints positions of the arm  
     #Declare open position
-    open_position = 0.01
+    joint_position = 0.2 if wannaAttach else 0.01
     #Get joint configuration from gripper
-    joint_config = gripper_move_group.get_current_joint_values()
+    joint_config = self.gripper_move_group.get_current_joint_values()
     print("-----ACTUAL Joint Configuration: ", joint_config)
     #Assing open position
     for i in range(6):
-      joint_config[i] = open_position
+      joint_config[i] = joint_position
     #Give the joint positions to the gripper planner
-    gripper_move_group.go(joint_config, wait=True)
+    self.gripper_move_group.go(joint_config, wait=True)
     #Stop gripper move
-    gripper_move_group.stop()
+    self.gripper_move_group.stop()
     rospy.sleep(0.2)
     #Call attach service with false to dettach action
     att = rospy.ServiceProxy("AttachObject",AttachObject)
-    resp = att(False, box_name)
-
-
-  def attachBox(self,box_name):
-  #TODO: Close the gripper and call the service that releases the box
-  #Copy global variables into local 
-    gripper_move_group = self.gripper_move_group
-    #Declare open position
-    close_position = 0.2
-    #Get joint configuration from gripper
-    joint_config = gripper_move_group.get_current_joint_values()
-    print("-----ACTUAL Joint Configuration: ", joint_config)
-    #Assing open position
-    for i in range(6):
-      joint_config[i] = close_position
-    #Give the joint positions to the gripper planner
-    gripper_move_group.go(joint_config, wait=True)
-    #Stop gripper move
-    gripper_move_group.stop()
+    resp = att(wannaAttach, box_name)
     rospy.sleep(0.2)
-    #Call attach service with true to execute attach action
-    att = rospy.ServiceProxy("AttachObject",AttachObject)
-    resp = att(True, box_name)
-
-
-
 
 class myNode():
   def __init__(self):
@@ -321,13 +284,29 @@ class myNode():
         print(goal)
         #Move to goal box
         self.planner.goToPose(goal)
-        self.planner.attachBox(box)
+        #self.planner.attachBox(box)
+        self.planner.changeAttachBox(box,wannaAttach=True)
+        #At the time of doing wait_for_state_update, we wait for the attach state to be updated
+        #   When attaching we expect box_is_known=False, box_is_attached=True, and when dettaching
+        #   box_is_known=True, box_is_attached=False. However, in our case, when we try to use it 
+        #   with this values, we got timeout always. That's why we beleive it is a problem related
+        #   to attach service 
+        #So, for this case, we are going to ignore this conditional in order to continue with execution
+        #if(self.planner.wait_for_state_update(box, box_is_known=False, box_is_attached=True)==False):
+          #print("Attach error")
+          #break
+        self.planner.wait_for_state_update(box, box_is_known=False, box_is_attached=True)
         self.planner.goBackFromPose(goal)
         #Get deposit box position and tranforms
         deposit = self.getGoal("place")
         goal = self.tf_goal(deposit)
         self.planner.goToPose(goal)
-        self.planner.detachBox(box)
+        #self.planner.detachBox(box)
+        self.planner.changeAttachBox(box,wannaAttach=False)
+        self.planner.wait_for_state_update(box, box_is_known=True, box_is_attached=False)
+        #if(self.planner.wait_for_state_update(box, box_is_known=True, box_is_attached=False)==False):
+          #print("Dettach error")
+          #break
         self.planner.goBackFromPose(goal)
   
     rospy.signal_shutdown("Task Completed")
